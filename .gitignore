@@ -1,0 +1,16 @@
+cmd/client/client
+*.log
+*.swp
+*.o
+*.a
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.data
+*.png
+*.txt
+*.csv
+*.pprof
+*.profile
+*.profiling
