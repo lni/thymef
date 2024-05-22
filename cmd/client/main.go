@@ -31,16 +31,16 @@ func main() {
 
 	start := time.Now()
 	for {
+		time.Sleep(100 * time.Millisecond)
 		st := time.Now()
 		ut, err := client.GetUnixTime()
 		cost := time.Since(st)
 		tt := time.Since(start)
 		if err == gnomon.ErrNotReady {
-			time.Sleep(10 * time.Millisecond)
 			continue
 		}
-		fmt.Printf("%d %d %d\n",
-			tt.Microseconds(),
+		fmt.Printf("%g %d %d\n",
+			float64(tt.Milliseconds())/3600000.0,
 			ut.Dispersion,
 			cost.Microseconds())
 	}

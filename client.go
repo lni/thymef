@@ -113,17 +113,19 @@ func (c *Client) read() (ClientInfo, uint64, uint32, error) {
 	var r2 ClientInfo
 
 	for {
-		if err := c.readFromShm(); err != nil {
+		buf, err := c.readFromShm()
+		if err != nil {
 			return ClientInfo{}, 0, 0, err
 		}
-		if err := UnmarshalClientInfo(c.buf, &r1); err != nil {
+		if err := UnmarshalClientInfo(buf, &r1); err != nil {
 			panic(err)
 		}
 		sec, nsec := getSysClockTime()
-		if err := c.readFromShm(); err != nil {
+		buf, err = c.readFromShm()
+		if err != nil {
 			return ClientInfo{}, 0, 0, err
 		}
-		if err := UnmarshalClientInfo(c.buf, &r2); err != nil {
+		if err := UnmarshalClientInfo(buf, &r2); err != nil {
 			panic(err)
 		}
 		if r1.Count == r2.Count {
@@ -134,17 +136,17 @@ func (c *Client) read() (ClientInfo, uint64, uint32, error) {
 	panic("not suppose to reach here")
 }
 
-func (c *Client) readFromShm() error {
+func (c *Client) readFromShm() ([]byte, error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
 	if _, err := c.shmfile.ReadAt(c.lb, 0); err != nil {
-		return err
+		return nil, err
 	}
 	datalen := binary.BigEndian.Uint16(c.lb)
 	if _, err := c.shmfile.ReadAt(c.buf[:datalen], 2); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return c.buf[:datalen], nil
 }
