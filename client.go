@@ -16,7 +16,6 @@ package gnomon
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"os"
 
@@ -25,9 +24,13 @@ import (
 )
 
 const (
-	ClientInfoSharedMemoryBufferSize int = 256
+	ClientInfoSharedMemoryBufferSize int = 48
 	DefaultLockPath                      = "/tmp/clockd.client.lock"
 	DefaultShmPath                       = "clockd.shm"
+)
+
+var (
+	encoder = binary.BigEndian
 )
 
 var (
@@ -45,19 +48,54 @@ type ClientInfo struct {
 	NSec       uint32
 }
 
-func (c *ClientInfo) Marshal() ([]byte, error) {
-	return json.Marshal(c)
+func (c *ClientInfo) Marshal(buf []byte) ([]byte, error) {
+	if len(buf) < 24 {
+		panic("invalid buffer length")
+	}
+
+	if c.Valid {
+		buf[0] = 1
+	} else {
+		buf[0] = 0
+	}
+	if c.Locked {
+		buf[1] = 1
+	} else {
+		buf[1] = 0
+	}
+
+	encoder.PutUint16(buf[2:], c.Count)
+	encoder.PutUint64(buf[4:], c.Dispersion)
+	encoder.PutUint64(buf[12:], c.Sec)
+	encoder.PutUint32(buf[20:], c.NSec)
+
+	return buf[:24], nil
 }
 
 func UnmarshalClientInfo(data []byte, c *ClientInfo) error {
-	return json.Unmarshal(data, c)
+	if len(data) != 24 {
+		panic("invalid input")
+	}
+	c.Valid = false
+	if data[0] == 1 {
+		c.Valid = true
+	}
+	c.Locked = false
+	if data[1] == 1 {
+		c.Locked = true
+	}
+	c.Count = encoder.Uint16(data[2:])
+	c.Dispersion = encoder.Uint64(data[4:])
+	c.Sec = encoder.Uint64(data[12:])
+	c.NSec = encoder.Uint32(data[20:])
+
+	return nil
 }
 
 // Client is the client used to get current bounded time. It is not thread safe
 // meaning you shouldn't be using the same client concurrently from multiple
 // threads.
 type Client struct {
-	lb      []byte
 	buf     []byte
 	mutex   *filemutex.FileMutex
 	shmfile *os.File
@@ -77,7 +115,6 @@ func NewClient(lockPath string, shmPath string) (*Client, error) {
 	e := &Client{
 		mutex:   m,
 		shmfile: file,
-		lb:      make([]byte, 2),
 		buf:     make([]byte, ClientInfoSharedMemoryBufferSize),
 	}
 	return e, nil
@@ -93,9 +130,13 @@ func (c *Client) Close() (err error) {
 // GetUnixTime returns the UnixTime instance that presents the current time
 // with associated uncertainty.
 func (c *Client) GetUnixTime() (UnixTime, error) {
-	info, sec, nsec, err := c.read()
+	data, sec, nsec, err := c.read()
 	if err != nil {
 		return UnixTime{}, err
+	}
+	info := ClientInfo{}
+	if err := UnmarshalClientInfo(data, &info); err != nil {
+		panic(err)
 	}
 	if !info.Valid || !info.Locked {
 		return UnixTime{}, ErrNotReady
@@ -108,45 +149,14 @@ func (c *Client) GetUnixTime() (UnixTime, error) {
 	}, nil
 }
 
-func (c *Client) read() (ClientInfo, uint64, uint32, error) {
-	var r1 ClientInfo
-	var r2 ClientInfo
-
-	for {
-		buf, err := c.readFromShm()
-		if err != nil {
-			return ClientInfo{}, 0, 0, err
-		}
-		if err := UnmarshalClientInfo(buf, &r1); err != nil {
-			panic(err)
-		}
-		sec, nsec := getSysClockTime()
-		buf, err = c.readFromShm()
-		if err != nil {
-			return ClientInfo{}, 0, 0, err
-		}
-		if err := UnmarshalClientInfo(buf, &r2); err != nil {
-			panic(err)
-		}
-		if r1.Count == r2.Count {
-			return r1, sec, nsec, nil
-		}
-	}
-
-	panic("not suppose to reach here")
-}
-
-func (c *Client) readFromShm() ([]byte, error) {
+func (c *Client) read() ([]byte, uint64, uint32, error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-
-	if _, err := c.shmfile.ReadAt(c.lb, 0); err != nil {
-		return nil, err
+	sec, nsec := getSysClockTime()
+	if _, err := c.shmfile.ReadAt(c.buf, 0); err != nil {
+		return nil, 0, 0, err
 	}
-	datalen := binary.BigEndian.Uint16(c.lb)
-	if _, err := c.shmfile.ReadAt(c.buf[:datalen], 2); err != nil {
-		return nil, err
-	}
+	datalen := binary.BigEndian.Uint16(c.buf)
 
-	return c.buf[:datalen], nil
+	return c.buf[2 : 2+datalen], sec, nsec, nil
 }
