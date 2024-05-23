@@ -30,7 +30,7 @@ const (
 )
 
 var (
-	encoder = binary.BigEndian
+	Encoder = binary.BigEndian
 )
 
 var (
@@ -64,10 +64,10 @@ func (c *ClientInfo) Marshal(buf []byte) ([]byte, error) {
 		buf[1] = 0
 	}
 
-	encoder.PutUint16(buf[2:], c.Count)
-	encoder.PutUint64(buf[4:], c.Dispersion)
-	encoder.PutUint64(buf[12:], c.Sec)
-	encoder.PutUint32(buf[20:], c.NSec)
+	Encoder.PutUint16(buf[2:], c.Count)
+	Encoder.PutUint64(buf[4:], c.Dispersion)
+	Encoder.PutUint64(buf[12:], c.Sec)
+	Encoder.PutUint32(buf[20:], c.NSec)
 
 	return buf[:24], nil
 }
@@ -84,10 +84,10 @@ func UnmarshalClientInfo(data []byte, c *ClientInfo) error {
 	if data[1] == 1 {
 		c.Locked = true
 	}
-	c.Count = encoder.Uint16(data[2:])
-	c.Dispersion = encoder.Uint64(data[4:])
-	c.Sec = encoder.Uint64(data[12:])
-	c.NSec = encoder.Uint32(data[20:])
+	c.Count = Encoder.Uint16(data[2:])
+	c.Dispersion = Encoder.Uint64(data[4:])
+	c.Sec = Encoder.Uint64(data[12:])
+	c.NSec = Encoder.Uint32(data[20:])
 
 	return nil
 }
