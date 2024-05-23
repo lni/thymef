@@ -19,13 +19,12 @@ import (
 	"errors"
 	"os"
 
-	"github.com/alexflint/go-filemutex"
 	"github.com/fabiokung/shm"
 )
 
 const (
 	ClientInfoSharedMemoryBufferSize int = 48
-	DefaultLockPath                      = "/tmp/clockd.client.lock"
+	DefaultLockPath                      = "clockd.client.lock"
 	DefaultShmPath                       = "clockd.shm"
 )
 
@@ -97,13 +96,13 @@ func UnmarshalClientInfo(data []byte, c *ClientInfo) error {
 // threads.
 type Client struct {
 	buf     []byte
-	mutex   *filemutex.FileMutex
+	mutex   *Semaphore
 	shmfile *os.File
 }
 
 // NewClient creates a new Client instance.
 func NewClient(lockPath string, shmPath string) (*Client, error) {
-	m, err := filemutex.New(lockPath)
+	m, err := NewSemaphore(lockPath, uint32(os.O_RDWR), 1)
 	if err != nil {
 		return nil, err
 	}
@@ -122,6 +121,7 @@ func NewClient(lockPath string, shmPath string) (*Client, error) {
 
 // Close closes the client instance.
 func (c *Client) Close() (err error) {
+	err = FirstError(err, c.mutex.Close())
 	err = FirstError(err, c.shmfile.Close())
 
 	return err
@@ -150,8 +150,8 @@ func (c *Client) GetUnixTime() (UnixTime, error) {
 }
 
 func (c *Client) read() ([]byte, uint64, uint32, error) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	c.mutex.Wait()
+	defer c.mutex.Post()
 	sec, nsec := getSysClockTime()
 	if _, err := c.shmfile.ReadAt(c.buf, 0); err != nil {
 		return nil, 0, 0, err
