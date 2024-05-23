@@ -44,6 +44,13 @@ type UnixTime struct {
 	Dispersion uint64
 }
 
+// IsEmpty returns a boolean flag indicating whether the UnixTime instance is
+// an empty value.
+func (t *UnixTime) IsEmpty() bool {
+	return t.Sec == 0 && t.NSec == 0
+}
+
+// Sub returns the time difference of (t - other) in nanoseconds.
 func (t *UnixTime) Sub(other UnixTime) int64 {
 	v := *t
 	if other.NSec > v.NSec {

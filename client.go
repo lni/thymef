@@ -19,21 +19,29 @@ import (
 	"errors"
 	"os"
 
-	"github.com/fabiokung/shm"
+	"github.com/gen2brain/shm"
 )
 
 const (
-	ClientInfoSharedMemoryBufferSize int = 48
-	DefaultLockPath                      = "clockd.client.lock"
-	DefaultShmPath                       = "clockd.shm"
+	// Path of the lock file.
+	DefaultLockPath string = "clockd.client.lock"
+	// Key used for shared memory communication with clockd.
+	DefaultShmKey int = 55356
+	// buffer size of the shared memory.
+	ClientInfoSharedMemoryBufferSize int   = 48
+	staleThresholdNanoseconds        int64 = 300000000
 )
 
 var (
+	// Encoder used for content stored in the shared memory region.
 	Encoder = binary.BigEndian
 )
 
 var (
-	ErrNotReady = errors.New("time service not ready")
+	// ErrNotReady indicates that clockd is not ready yet.
+	ErrNotReady = errors.New("bounded time service not ready")
+	// ErrStopped indicates that clockd unexpectedly stopped, e.g. crashed.
+	ErrStopped = errors.New("bounded time service stopped")
 )
 
 // ClientInfo contains details exposed by clockd. Applications shouldn't be
@@ -95,34 +103,45 @@ func UnmarshalClientInfo(data []byte, c *ClientInfo) error {
 // meaning you shouldn't be using the same client concurrently from multiple
 // threads.
 type Client struct {
-	buf     []byte
-	mutex   *Semaphore
-	shmfile *os.File
+	lockPath string
+	shmKey   int
+	buf      []byte
+	data     []byte
+	mutex    *Semaphore
+	shmID    int
+
+	last struct {
+		count uint16
+		time  UnixTime
+	}
+
+	resetRequired bool
 }
 
 // NewClient creates a new Client instance.
-func NewClient(lockPath string, shmPath string) (*Client, error) {
-	m, err := NewSemaphore(lockPath, uint32(os.O_RDWR), 1)
-	if err != nil {
-		return nil, err
+func NewClient(lockPath string, shmKey int) (*Client, error) {
+	c := &Client{
+		lockPath: lockPath,
+		shmKey:   shmKey,
+		buf:      make([]byte, ClientInfoSharedMemoryBufferSize),
 	}
-	file, err := shm.Open(shmPath, os.O_RDONLY, 0600)
-	if err != nil {
+	if err := reset(c); err != nil {
 		return nil, err
 	}
 
-	e := &Client{
-		mutex:   m,
-		shmfile: file,
-		buf:     make([]byte, ClientInfoSharedMemoryBufferSize),
-	}
-	return e, nil
+	return c, nil
 }
 
 // Close closes the client instance.
 func (c *Client) Close() (err error) {
-	err = FirstError(err, c.mutex.Close())
-	err = FirstError(err, c.shmfile.Close())
+	if c.data != nil {
+		err = FirstError(err, shm.Dt(c.data))
+		c.data = nil
+	}
+	if c.mutex != nil {
+		err = FirstError(err, c.mutex.Close())
+		c.mutex = nil
+	}
 
 	return err
 }
@@ -132,6 +151,7 @@ func (c *Client) Close() (err error) {
 func (c *Client) GetUnixTime() (UnixTime, error) {
 	data, sec, nsec, err := c.read()
 	if err != nil {
+		c.resetRequired = true
 		return UnixTime{}, err
 	}
 	info := ClientInfo{}
@@ -139,24 +159,90 @@ func (c *Client) GetUnixTime() (UnixTime, error) {
 		panic(err)
 	}
 	if !info.Valid || !info.Locked {
+		c.resetRequired = true
 		return UnixTime{}, ErrNotReady
 	}
 
-	return UnixTime{
+	ut := UnixTime{
 		Sec:        sec,
 		NSec:       nsec,
 		Dispersion: getDispersion(info, sec, nsec),
-	}, nil
+	}
+	if c.updateStaled(ut, info.Count) {
+		c.resetRequired = true
+		return UnixTime{}, ErrStopped
+	}
+	if c.last.count != info.Count {
+		c.last.count = info.Count
+		c.last.time = ut
+	}
+
+	return ut, nil
 }
 
-func (c *Client) read() ([]byte, uint64, uint32, error) {
-	c.mutex.Wait()
-	defer c.mutex.Post()
-	sec, nsec := getSysClockTime()
-	if _, err := c.shmfile.ReadAt(c.buf, 0); err != nil {
+func (c *Client) updateStaled(ut UnixTime, count uint16) bool {
+	if c.last.count != count {
+		return false
+	}
+	if c.last.time.IsEmpty() {
+		return false
+	}
+
+	return ut.Sub(c.last.time) > staleThresholdNanoseconds
+}
+
+func reset(c *Client) error {
+	_ = c.Close()
+
+	m, err := NewSemaphore(c.lockPath, uint32(os.O_RDWR), 1)
+	if err != nil {
+		return err
+	}
+	shmID, err := shm.Get(c.shmKey, ClientInfoSharedMemoryBufferSize, shm.IPC_CREAT|0600)
+	if err != nil {
+		return err
+	}
+	data, err := shm.At(shmID, 0, 0)
+	if err != nil {
+		return err
+	}
+
+	c.mutex = m
+	c.shmID = shmID
+	c.data = data
+
+	return nil
+}
+
+func (c *Client) tryReset() error {
+	if c.resetRequired {
+		c.resetRequired = false
+		if err := reset(c); err != nil {
+			c.resetRequired = true
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *Client) read() (data []byte, sec uint64, nsec uint32, err error) {
+	if err := c.tryReset(); err != nil {
 		return nil, 0, 0, err
 	}
+
+	if err := c.mutex.Wait(); err != nil {
+		return nil, 0, 0, err
+	}
+	defer func() {
+		err = c.mutex.Post()
+	}()
+	sec, nsec = getSysClockTime()
+	copy(c.buf, c.data)
 	datalen := binary.BigEndian.Uint16(c.buf)
+	if datalen == 0 {
+		return nil, 0, 0, ErrNotReady
+	}
 
 	return c.buf[2 : 2+datalen], sec, nsec, nil
 }

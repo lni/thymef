@@ -23,7 +23,7 @@ import (
 
 // this is a toy test client, provided as an example
 func main() {
-	client, err := gnomon.NewClient(gnomon.DefaultLockPath, gnomon.DefaultShmPath)
+	client, err := gnomon.NewClient(gnomon.DefaultLockPath, gnomon.DefaultShmKey)
 	if err != nil {
 		panic(err)
 	}
@@ -36,7 +36,12 @@ func main() {
 		ut, err := client.GetUnixTime()
 		cost := time.Since(st)
 		tt := time.Since(start)
+		if err == gnomon.ErrStopped {
+			fmt.Printf("clockd stopped\n")
+			continue
+		}
 		if err == gnomon.ErrNotReady {
+			fmt.Printf("clockd is not ready yet\n")
 			continue
 		}
 		fmt.Printf("%g %d %d\n",
