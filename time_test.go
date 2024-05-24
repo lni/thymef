@@ -20,6 +20,39 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestIsEmpty(t *testing.T) {
+	tests := []struct {
+		sec    uint64
+		nsec   uint32
+		result bool
+	}{
+		{0, 0, true},
+		{1, 0, false},
+		{0, 1, false},
+		{1, 1, false},
+	}
+
+	for idx, tt := range tests {
+		ut := UnixTime{
+			Sec:  tt.sec,
+			NSec: tt.nsec,
+		}
+		assert.Equal(t, tt.result, ut.IsEmpty(), idx)
+	}
+}
+
+func TestRange(t *testing.T) {
+	ut := UnixTime{
+		Sec:        2,
+		NSec:       100200,
+		Dispersion: 8,
+	}
+
+	lower, upper := ut.Bounds()
+	assert.Equal(t, uint64(2000100192), lower)
+	assert.Equal(t, uint64(2000100208), upper)
+}
+
 func TestUnixTimeSub(t *testing.T) {
 	tests := []struct {
 		sec    uint64

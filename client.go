@@ -18,6 +18,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"os"
+	"time"
 
 	"github.com/gen2brain/shm"
 )
@@ -146,8 +147,28 @@ func (c *Client) Close() (err error) {
 	return err
 }
 
-// GetUnixTime returns the UnixTime instance that presents the current time
-// with associated uncertainty.
+// WaitUntil does not return until the sys clock time is later than the
+// specified deadline with all uncertainties considered. That is, WaitUntil()
+// will not return until the sys clock time is definiately past the specified
+// deadline.
+func (c *Client) WaitUntil(deadline UnixTime) error {
+	_, upper := deadline.Bounds()
+	for {
+		now, err := c.GetUnixTime()
+		if err != nil {
+			return err
+		}
+		nl, _ := now.Bounds()
+		if nl >= upper {
+			return nil
+		}
+		diff := (upper-nl)/1000 + 1
+		time.Sleep(time.Duration(diff) * time.Microsecond)
+	}
+}
+
+// GetUnixTime returns the UnixTime instance that represents the current time
+// with reported uncertainty.
 func (c *Client) GetUnixTime() (UnixTime, error) {
 	data, sec, nsec, err := c.read()
 	if err != nil {

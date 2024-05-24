@@ -50,6 +50,13 @@ func (t *UnixTime) IsEmpty() bool {
 	return t.Sec == 0 && t.NSec == 0
 }
 
+// Bounds returns the lower and upper limit of the time represented by the
+// UnixTime instance.
+func (t *UnixTime) Bounds() (uint64, uint64) {
+	un := t.Sec*1e9 + uint64(t.NSec)
+	return un - t.Dispersion, un + t.Dispersion
+}
+
 // Sub returns the time difference of (t - other) in nanoseconds.
 func (t *UnixTime) Sub(other UnixTime) int64 {
 	v := *t
