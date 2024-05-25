@@ -1,4 +1,5 @@
 cmd/client/client
+/test-client
 *.log
 *.swp
 *.o
