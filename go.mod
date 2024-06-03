@@ -1,4 +1,4 @@
-module github.com/lni/gnomon
+module gitlab.com/lni/gnomon
 
 go 1.22
 

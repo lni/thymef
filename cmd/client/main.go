@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lni/gnomon"
+	"gitlab.com/lni/gnomon"
 )
 
 // this is a toy test client, provided as an example
