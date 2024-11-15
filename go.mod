@@ -1,6 +1,6 @@
-module gitlab.com/lni/gnomon
+module github.com/lni/pothosf
 
-go 1.22
+go 1.23
 
 require (
 	github.com/gen2brain/shm v0.1.0

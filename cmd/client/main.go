@@ -18,12 +18,13 @@ import (
 	"fmt"
 	"time"
 
-	"gitlab.com/lni/gnomon"
+	"github.com/lni/pothosf"
 )
 
 // this is a toy test client, provided as an example
+// it also print out various latencies and dispersions for visualization
 func main() {
-	client, err := gnomon.NewClient(gnomon.DefaultLockPath, gnomon.DefaultShmKey)
+	client, err := pothosf.NewClient(pothosf.DefaultLockPath, pothosf.DefaultShmKey)
 	if err != nil {
 		panic(err)
 	}
@@ -36,11 +37,11 @@ func main() {
 		ut, err := client.GetUnixTime()
 		cost := time.Since(st)
 		tt := time.Since(start)
-		if err == gnomon.ErrStopped {
+		if err == pothosf.ErrStopped {
 			fmt.Printf("clockd stopped\n")
 			continue
 		}
-		if err == gnomon.ErrNotReady {
+		if err == pothosf.ErrNotReady {
 			fmt.Printf("clockd is not ready yet\n")
 			continue
 		}

@@ -1,8 +1,6 @@
-## Genomon
+## Pothosf - Pothos Follower
 
-Genomon is the client library for accessing bounded time provided by clockd, clockd is not publicly available at this stage. 
-
-[Genomon](https://en.wikipedia.org/wiki/Gnomon) is the part of a sundial used for projecting a pinhole shadow image of the sun to tell the time of day. 
+Pothosf is the client library for accessing bounded time provided by pothos. 
 
 ## Languages and platforms
 
@@ -12,4 +10,6 @@ Linux is support, with Darwin supported for development and testing purposes.
 
 ## LICENSE
 
-Genomon is the Apache2 licensed.
+Pothosf is Apache2 licensed. Pothosf contains other 3rd party source code licensed under various licenses. See source code headers for details. 
+
+Pothos, which is the core component of the clock synchronization system, is proprietary and can be licensed under its commerical license. 
