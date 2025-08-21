@@ -1,6 +1,6 @@
-## Pothosf - Pothos Follower
+## Thymef - Thyme Follower
 
-Pothosf is the client library for accessing bounded time provided by pothos. 
+Thymef is the client library for accessing bounded time provided by thyme.
 
 ## Languages and platforms
 

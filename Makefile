@@ -15,13 +15,17 @@
 all: test-client
 PKGNAME=$(shell go list)
 
+.PHONY: test
+test:
+	go test -v -count=1 .
+
 .PHONY: test-client
 test-client:
 	go build -o test-client $(PKGNAME)/cmd/client
 
 # static checks
-GOLANGCI_LINT_VERSION=v1.58.2
-EXTRA_LINTERS=-E misspell -E rowserrcheck -E unconvert -E prealloc -E stylecheck
+GOLANGCI_LINT_VERSION=v2.1.6
+EXTRA_LINTERS=-E misspell -E rowserrcheck -E unconvert -E prealloc
 .PHONY: static-check
 static-check:
 	golangci-lint run --timeout 3m $(EXTRA_LINTERS)

@@ -18,17 +18,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lni/pothosf"
+	"github.com/lni/thymef"
 )
 
 // this is a toy test client, provided as an example
 // it also print out various latencies and dispersions for visualization
 func main() {
-	client, err := pothosf.NewClient(pothosf.DefaultLockPath, pothosf.DefaultShmKey)
+	client, err := thymef.NewClient(thymef.DefaultLockPath, thymef.DefaultShmKey)
 	if err != nil {
 		panic(err)
 	}
-	defer client.Close()
+	defer func() {
+		_ = client.Close()
+	}()
 
 	start := time.Now()
 	for {
@@ -37,12 +39,12 @@ func main() {
 		ut, err := client.GetUnixTime()
 		cost := time.Since(st)
 		tt := time.Since(start)
-		if err == pothosf.ErrStopped {
-			fmt.Printf("clockd stopped\n")
+		if err == thymef.ErrStopped {
+			fmt.Printf("thymed stopped\n")
 			continue
 		}
-		if err == pothosf.ErrNotReady {
-			fmt.Printf("clockd is not ready yet\n")
+		if err == thymef.ErrNotReady {
+			fmt.Printf("thymed is not ready yet\n")
 			continue
 		}
 		fmt.Printf("%g %d %d\n",

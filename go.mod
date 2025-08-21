@@ -1,4 +1,4 @@
-module github.com/lni/pothosf
+module github.com/lni/thymef
 
 go 1.23
 
