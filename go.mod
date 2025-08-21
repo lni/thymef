@@ -3,7 +3,7 @@ module github.com/lni/thymef
 go 1.23
 
 require (
-	github.com/gen2brain/shm v0.1.0
+	github.com/gen2brain/shm v0.1.1
 	github.com/stretchr/testify v1.9.0
 )
 
